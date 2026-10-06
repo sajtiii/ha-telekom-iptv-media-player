@@ -49,6 +49,7 @@ class TelekomCoordinator(DataUpdateCoordinator[BoxState]):
         self.epg = Epg()
         self.channels_by_lcn: dict[int, BoxChannel] = {}
         self.epg_to_lcn: dict[str, int] = {}
+        self.channel_images_by_epg_id: dict[str, str] = {}
         self._epg_channels: list[Channel] | None = None
         self._epg_groups: list[ChannelGroup] | None = None
 
@@ -63,6 +64,9 @@ class TelekomCoordinator(DataUpdateCoordinator[BoxState]):
         if self._epg_channels is None or self._epg_groups is None:
             self._epg_channels = await self.hass.async_add_executor_job(self.epg.channels)
             self._epg_groups = await self.hass.async_add_executor_job(self.epg.groups)
+            self.channel_images_by_epg_id = {
+                channel.id: channel.img for channel in self._epg_channels if channel.img
+            }
         return self._epg_channels, self._epg_groups
 
     async def async_refresh_static(self, _now=None) -> None:

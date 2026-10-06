@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
@@ -24,6 +26,8 @@ from .const import (
 )
 from .coordinator import TelekomCoordinator
 
+_LOGGER = logging.getLogger(__name__)
+
 TelekomConfigEntry = ConfigEntry[TelekomCoordinator]
 
 
@@ -44,6 +48,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: TelekomConfigEntry) -> b
 
     await coordinator.async_load_channels()
     await coordinator.async_config_entry_first_refresh()
+    try:
+        await coordinator.async_epg_data()
+    except Exception as err:  # noqa: BLE001 - EPG artwork is optional for local playback
+        _LOGGER.warning("Initial EPG fetch failed; channel artwork is unavailable: %s", err)
 
     entry.runtime_data = coordinator
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

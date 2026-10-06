@@ -132,6 +132,16 @@ class TelekomMediaPlayer(CoordinatorEntity[TelekomCoordinator], MediaPlayerEntit
         return self._name_by_lcn.get(act.channel, str(act.channel))
 
     @property
+    def media_image_url(self) -> str | None:
+        act = self._activity
+        if act is None or act.channel is None:
+            return None
+        channel = self.coordinator.channels_by_lcn.get(act.channel)
+        if channel is None or channel.epg_id is None:
+            return None
+        return self.coordinator.channel_images_by_epg_id.get(channel.epg_id)
+
+    @property
     def media_duration(self) -> int | None:
         now = self._now
         if now is None or now.duration is None:
