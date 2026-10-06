@@ -1,0 +1,12 @@
+{
+  "domain": "telekom_iptv_remote",
+  "name": "Telekom IPTV Box Media Player",
+  "codeowners": ["@sajtiii"],
+  "config_flow": true,
+  "documentation": "https://github.com/sajtiii/ha-telekom-iptv-media-player",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/sajtiii/ha-telekom-iptv-media-player/issues",
+  "requirements": ["telekom-iptv-remote>=0.1.0"],
+  "version": "0.1.0"
+}

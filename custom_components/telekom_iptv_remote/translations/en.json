@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Pair with your Telekom box",
+        "description": "Open the remote-pairing screen on the TV so it shows an 8-character code, then enter it here.",
+        "data": {
+          "host": "IP address",
+          "code": "Pairing code (8 hex characters)",
+          "name": "Client name (shown on the box)"
+        }
+      }
+    },
+    "error": {
+      "pair_failed": "Pairing failed. The code may have expired - show a fresh one and try again.",
+      "invalid_code": "The pairing code must be 8 hexadecimal characters.",
+      "cannot_connect": "Could not reach the box at that IP address."
+    },
+    "abort": {
+      "already_configured": "This box is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Telekom IPTV Box Media Player",
+        "data": {
+          "volume_min": "Minimum volume (box scale)",
+          "volume_max": "Maximum volume (box scale)",
+          "scan_interval": "Polling interval (seconds)"
+        }
+      }
+    }
+  }
+}
