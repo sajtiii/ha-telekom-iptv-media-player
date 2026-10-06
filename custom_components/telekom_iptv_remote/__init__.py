@@ -6,6 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_time_interval
+
 from telekom_iptv_remote import Device, Remote
 
 from .const import (
