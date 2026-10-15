@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
+
 from homeassistant.components.media_player import (
     BrowseMedia,
     MediaClass,
@@ -39,6 +42,12 @@ SUPPORT = (
 # media_content_type for a tunable channel in the media browser
 CHANNEL = "channel"
 
+# the box drops rapid key presses and reports volume with a lag, so volume is changed in
+# short paced bursts, each verified against a fresh read before the next one
+VOLUME_PRESS_INTERVAL = 0.15  # seconds between presses in a burst
+VOLUME_SETTLE_DELAY = 0.6  # seconds to let the box apply a burst before re-reading
+VOLUME_MAX_ROUNDS = 6
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -60,6 +69,8 @@ class TelekomMediaPlayer(CoordinatorEntity[TelekomCoordinator], MediaPlayerEntit
     def __init__(self, coordinator: TelekomCoordinator, entry: TelekomConfigEntry) -> None:
         super().__init__(coordinator)
         self._entry = entry
+        self._volume_lock = asyncio.Lock()
+        self._volume_target: int | None = None
         self._attr_unique_id = entry.unique_id
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.unique_id)},
@@ -173,17 +184,42 @@ class TelekomMediaPlayer(CoordinatorEntity[TelekomCoordinator], MediaPlayerEntit
         await self.hass.async_add_executor_job(func, *args)
         await self.coordinator.async_request_refresh()
 
+    def _apply_volume(self) -> None:
+        """Drive the box volume to self._volume_target (runs in the executor).
+
+        The target is re-read every round so a newer request (e.g. a dragged slider)
+        supersedes the one in progress instead of fighting it.
+        """
+        remote = self._remote
+        for _ in range(VOLUME_MAX_ROUNDS):
+            act = remote.activity()
+            target = self._volume_target
+            if act is None or act.volume is None or target is None:
+                return
+            delta = target - act.volume
+            if delta == 0:
+                return
+            key = Key.VOLUME_UP if delta > 0 else Key.VOLUME_DOWN
+            for _ in range(abs(delta)):
+                remote.send_key(key)
+                time.sleep(VOLUME_PRESS_INTERVAL)
+            time.sleep(VOLUME_SETTLE_DELAY)
+
     async def async_set_volume_level(self, volume: float) -> None:
-        lo = self._remote.device.volume_min
-        hi = self._remote.device.volume_max
-        target = lo + round(volume * (hi - lo))
-        await self._send(self._remote.set_volume, target)
+        dev = self._remote.device
+        self._volume_target = dev.volume_min + round(volume * (dev.volume_max - dev.volume_min))
+        # a call arriving mid-change only updates the target; the running one picks it up
+        async with self._volume_lock:
+            await self.hass.async_add_executor_job(self._apply_volume)
+        await self.coordinator.async_request_refresh()
 
     async def async_volume_up(self) -> None:
-        await self._send(self._remote.send_key, Key.VOLUME_UP)
+        async with self._volume_lock:
+            await self._send(self._remote.send_key, Key.VOLUME_UP)
 
     async def async_volume_down(self) -> None:
-        await self._send(self._remote.send_key, Key.VOLUME_DOWN)
+        async with self._volume_lock:
+            await self._send(self._remote.send_key, Key.VOLUME_DOWN)
 
     async def async_mute_volume(self, mute: bool) -> None:
         # the box only has a mute toggle; send it when the desired state differs
@@ -191,11 +227,20 @@ class TelekomMediaPlayer(CoordinatorEntity[TelekomCoordinator], MediaPlayerEntit
         if act is None or act.muted != mute:
             await self._send(self._remote.send_key, Key.MUTE)
 
-    async def async_turn_on(self) -> None:
+    # the box only has a power toggle, so read the live state first and press only
+    # when it differs from what was asked for
+    async def _async_set_power(self, on: bool) -> None:
+        act = await self.hass.async_add_executor_job(self._remote.activity)
+        if act is not None and act.awake == on:
+            await self.coordinator.async_request_refresh()
+            return
         await self._send(self._remote.send_key, Key.POWER)
 
+    async def async_turn_on(self) -> None:
+        await self._async_set_power(True)
+
     async def async_turn_off(self) -> None:
-        await self._send(self._remote.send_key, Key.POWER)
+        await self._async_set_power(False)
 
     async def async_media_next_track(self) -> None:
         await self._send(self._remote.send_key, Key.CHANNEL_UP)
